@@ -1,4 +1,5 @@
 mod cli;
+mod m3u;
 mod parser;
 mod types;
 
