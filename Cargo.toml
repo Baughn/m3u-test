@@ -1,6 +1,18 @@
 [package]
 name = "m3u-emu"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+description = "Generate m3u playlists for multi-disc ROM collections"
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
+walkdir = "2"
+regex = "1"
+infer = "0.16"
+indicatif = "0.17"
+console = "0.15"
+anyhow = "1"
+once_cell = "1"
+
+[dev-dependencies]
+tempfile = "3"
