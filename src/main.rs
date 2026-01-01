@@ -1,6 +1,7 @@
 mod cli;
 mod m3u;
 mod parser;
+mod scanner;
 mod types;
 
 use clap::Parser;
