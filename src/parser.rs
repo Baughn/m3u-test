@@ -1,6 +1,7 @@
 // Parser module for extracting disc numbers from filenames
 
 use once_cell::sync::Lazy;
+use regex::Regex;
 use std::collections::HashMap;
 
 /// Convert English word numerals and single letters to numbers
@@ -62,6 +63,38 @@ pub fn word_to_number(word: &str) -> Option<u32> {
     None
 }
 
+static NUMBER_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\d+").unwrap());
+
+/// Extract a number from a string containing digits, words, or letters
+pub fn extract_number(s: &str) -> Option<u32> {
+    // First try to find a numeric digit sequence
+    if let Some(m) = NUMBER_REGEX.find(s) {
+        if let Ok(n) = m.as_str().parse::<u32>() {
+            return Some(n);
+        }
+    }
+
+    // Split into words, try to convert
+    let words: Vec<&str> = s.split_whitespace().collect();
+
+    if words.is_empty() {
+        return None;
+    }
+
+    if words.len() == 1 {
+        return word_to_number(words[0]);
+    }
+
+    // Try the second word (e.g., "Disc Two" -> "Two")
+    if words.len() >= 2 {
+        if let Some(n) = word_to_number(words[1]) {
+            return Some(n);
+        }
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,5 +139,42 @@ mod tests {
     fn test_word_to_number_invalid() {
         assert_eq!(word_to_number("hello"), None);
         assert_eq!(word_to_number(""), None);
+    }
+
+    #[test]
+    fn test_extract_number_digits() {
+        assert_eq!(extract_number("2"), Some(2));
+        assert_eq!(extract_number("12"), Some(12));
+        assert_eq!(extract_number("007"), Some(7)); // Leading zeros removed
+    }
+
+    #[test]
+    fn test_extract_number_with_text() {
+        assert_eq!(extract_number("Disc 2"), Some(2));
+        assert_eq!(extract_number("CD 12"), Some(12));
+    }
+
+    #[test]
+    fn test_extract_number_word() {
+        assert_eq!(extract_number("Disc Two"), Some(2));
+        assert_eq!(extract_number("CD Twenty-Three"), Some(23));
+    }
+
+    #[test]
+    fn test_extract_number_letter() {
+        assert_eq!(extract_number("Disk A"), Some(1));
+        assert_eq!(extract_number("Floppy B"), Some(2));
+    }
+
+    #[test]
+    fn test_extract_number_single_word() {
+        assert_eq!(extract_number("boot"), Some(0));
+        assert_eq!(extract_number("A"), Some(1));
+    }
+
+    #[test]
+    fn test_extract_number_none() {
+        assert_eq!(extract_number(""), None);
+        assert_eq!(extract_number("hello world"), None);
     }
 }
