@@ -65,6 +65,66 @@ pub fn word_to_number(word: &str) -> Option<u32> {
 
 static NUMBER_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"\d+").unwrap());
 
+static ORDER_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)\(\s*(floppy\s|diskette\s|disk\s|cd\s|disc\s|boot|save)[^)(]*\)").unwrap()
+});
+
+static SIDE_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)\(\s*side\s[^)(]*\)").unwrap()
+});
+
+/// Result of parsing a filename
+#[derive(Debug, Clone)]
+pub struct ParsedFilename {
+    pub base_name: String,
+    pub disc_number: f32,
+}
+
+/// Parse a filename to extract base name and disc number
+pub fn parse_filename(filename: &str) -> ParsedFilename {
+    // Remove extension
+    let name = match filename.rfind('.') {
+        Some(i) => &filename[..i],
+        None => filename,
+    };
+
+    let mut base_name = name.to_string();
+    let mut disc_number: f32 = 1.0;
+
+    // Extract disc/cd/floppy identifier
+    if let Some(m) = ORDER_REGEX.find(name) {
+        let matched = m.as_str();
+        // Extract just the content inside parentheses
+        let inner = &matched[1..matched.len() - 1];
+        if let Some(n) = extract_number(inner) {
+            disc_number = n as f32;
+        }
+        // Remove the match from base_name
+        base_name = ORDER_REGEX.replace_all(&base_name, "").to_string();
+    }
+
+    // Extract side identifier
+    if let Some(m) = SIDE_REGEX.find(name) {
+        let matched = m.as_str();
+        let inner = &matched[1..matched.len() - 1];
+        if let Some(n) = extract_number(inner) {
+            disc_number += n as f32 * 0.1;
+        }
+        base_name = SIDE_REGEX.replace_all(&base_name, "").to_string();
+    }
+
+    // Clean up whitespace
+    let base_name = base_name
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    ParsedFilename {
+        base_name,
+        disc_number,
+    }
+}
+
 /// Extract a number from a string containing digits, words, or letters
 pub fn extract_number(s: &str) -> Option<u32> {
     // First try to find a numeric digit sequence
@@ -176,5 +236,63 @@ mod tests {
     fn test_extract_number_none() {
         assert_eq!(extract_number(""), None);
         assert_eq!(extract_number("hello world"), None);
+    }
+
+    #[test]
+    fn test_parse_filename_disc() {
+        let result = parse_filename("Final Fantasy VII (Disc 2).cue");
+        assert_eq!(result.base_name, "Final Fantasy VII");
+        assert_eq!(result.disc_number, 2.0);
+    }
+
+    #[test]
+    fn test_parse_filename_cd() {
+        let result = parse_filename("Game (CD 1).iso");
+        assert_eq!(result.base_name, "Game");
+        assert_eq!(result.disc_number, 1.0);
+    }
+
+    #[test]
+    fn test_parse_filename_floppy() {
+        let result = parse_filename("Monkey Island (Disk A).adf");
+        assert_eq!(result.base_name, "Monkey Island");
+        assert_eq!(result.disc_number, 1.0);
+    }
+
+    #[test]
+    fn test_parse_filename_with_side() {
+        let result = parse_filename("Game (Disk 1) (Side A).adf");
+        assert_eq!(result.base_name, "Game");
+        assert!((result.disc_number - 1.1).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_parse_filename_no_disc() {
+        let result = parse_filename("Single Game.iso");
+        assert_eq!(result.base_name, "Single Game");
+        assert_eq!(result.disc_number, 1.0);
+    }
+
+    #[test]
+    fn test_parse_filename_word_number() {
+        let result = parse_filename("Game (Disc Two).cue");
+        assert_eq!(result.base_name, "Game");
+        assert_eq!(result.disc_number, 2.0);
+    }
+
+    #[test]
+    fn test_parse_filename_boot_save() {
+        let boot = parse_filename("Game (Boot).adf");
+        assert_eq!(boot.disc_number, 0.0);
+
+        let save = parse_filename("Game (Save).adf");
+        assert_eq!(save.disc_number, 99.0);
+    }
+
+    #[test]
+    fn test_parse_filename_preserves_other_parens() {
+        let result = parse_filename("Game (USA) (Disc 1).cue");
+        assert_eq!(result.base_name, "Game (USA)");
+        assert_eq!(result.disc_number, 1.0);
     }
 }
