@@ -1,11 +1,13 @@
 mod cli;
 mod m3u;
+mod output;
 mod parser;
 mod scanner;
 mod types;
 
 use clap::Parser;
 use cli::Cli;
+use output::Output;
 
 fn main() {
     let cli = Cli::parse();
@@ -15,5 +17,6 @@ fn main() {
         std::process::exit(1);
     }
 
-    println!("Target: {:?}", cli.target);
+    let output = Output::new(cli.quiet, cli.verbose);
+    output.info(&format!("Scanning {}...", cli.target.display()));
 }
