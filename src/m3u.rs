@@ -1,6 +1,7 @@
 use crate::types::{MediaFile, MediaType};
 use anyhow::Result;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// A group of files that will become one m3u
@@ -87,11 +88,36 @@ pub fn is_text_file(path: &Path) -> Result<bool> {
     Ok(non_text_count < bytes.len() / 10)
 }
 
+/// Write an m3u file with paths to the given media files
+pub fn write_m3u(
+    m3u_path: &Path,
+    files: &[MediaFile],
+    relative_to: Option<&Path>,
+) -> Result<()> {
+    let mut f = fs::File::create(m3u_path)?;
+
+    for media_file in files {
+        let path_str = match relative_to {
+            Some(base) => {
+                // Calculate relative path
+                pathdiff::diff_paths(&media_file.path, base)
+                    .unwrap_or_else(|| media_file.path.clone())
+                    .to_string_lossy()
+                    .to_string()
+            }
+            None => media_file.path.to_string_lossy().to_string(),
+        };
+        writeln!(f, "{}", path_str)?;
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
-    use tempfile::NamedTempFile;
+    use tempfile::{NamedTempFile, TempDir};
 
     #[test]
     fn test_is_text_file_valid_m3u() {
@@ -173,6 +199,52 @@ mod tests {
         assert_eq!(game.files[0].disc_number, 1.0);
         assert_eq!(game.files[1].disc_number, 2.0);
         assert_eq!(game.files[2].disc_number, 3.0);
+    }
+
+    #[test]
+    fn test_write_m3u_absolute() {
+        let dir = TempDir::new().unwrap();
+        let game_dir = dir.path().join("games");
+        fs::create_dir(&game_dir).unwrap();
+
+        let files = vec![
+            MediaFile {
+                path: game_dir.join("Game (Disc 1).cue"),
+                filename: "Game (Disc 1).cue".to_string(),
+                base_name: "Game".to_string(),
+                disc_number: 1.0,
+                media_type: MediaType::DiscIndex,
+            },
+        ];
+
+        let m3u_path = dir.path().join("Game.m3u");
+        write_m3u(&m3u_path, &files, None).unwrap();
+
+        let content = fs::read_to_string(&m3u_path).unwrap();
+        assert!(content.contains(&game_dir.join("Game (Disc 1).cue").to_string_lossy().to_string()));
+    }
+
+    #[test]
+    fn test_write_m3u_relative() {
+        let dir = TempDir::new().unwrap();
+        let game_dir = dir.path().join("games");
+        fs::create_dir(&game_dir).unwrap();
+
+        let files = vec![
+            MediaFile {
+                path: game_dir.join("Game (Disc 1).cue"),
+                filename: "Game (Disc 1).cue".to_string(),
+                base_name: "Game".to_string(),
+                disc_number: 1.0,
+                media_type: MediaType::DiscIndex,
+            },
+        ];
+
+        let m3u_path = dir.path().join("Game.m3u");
+        write_m3u(&m3u_path, &files, Some(dir.path())).unwrap();
+
+        let content = fs::read_to_string(&m3u_path).unwrap();
+        assert!(content.contains("games/Game (Disc 1).cue") || content.contains("games\\Game (Disc 1).cue"));
     }
 
     fn make_media_file(filename: &str, base_name: &str, disc: f32, floppy: bool) -> MediaFile {
