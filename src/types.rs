@@ -47,6 +47,7 @@ pub struct MediaFile {
     /// Full path to the file
     pub path: PathBuf,
     /// Just the filename (no directory)
+    #[allow(dead_code)] // Used in tests and for debugging
     pub filename: String,
     /// Name with disc/side markers removed (for grouping)
     pub base_name: String,

@@ -1,8 +1,8 @@
-use crate::types::{MediaFile, MediaType};
+use crate::types::MediaFile;
 use anyhow::Result;
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// A group of files that will become one m3u
 #[derive(Debug)]
@@ -116,7 +116,9 @@ pub fn write_m3u(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::MediaType;
     use std::io::Write;
+    use std::path::PathBuf;
     use tempfile::{NamedTempFile, TempDir};
 
     #[test]
